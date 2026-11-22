@@ -71,6 +71,12 @@ button.big{letter-spacing:.08em;box-shadow:4px 4px 0 var(--ink),inset 0 0 0 3px 
 .frame canvas{outline:3px solid #2a1708}
 footer{margin-top:34px;text-align:center}
 .fine{margin:12px 0 0;color:var(--gold);letter-spacing:.1em;font-size:.9rem}
+.savebox{display:none;margin-top:16px;text-align:center}
+.savebox .ctrl{margin-top:10px}
+.film{display:flex;gap:10px;align-items:center;border-bottom:1px dashed var(--line);padding:10px 0}
+.film img{width:64px;height:48px;object-fit:cover;border:3px solid #fff6e0;filter:sepia(.5);flex:none}
+.film .meta{flex:1;font-size:.9rem;min-width:0;overflow-wrap:anywhere}
+.film button{padding:6px 12px;min-height:42px;font-size:1rem;flex:none}
 </style>
 </head>
 <body>
@@ -113,8 +119,9 @@ footer{margin-top:34px;text-align:center}
 <div class="orn" style="margin-top:22px">❦</div>
 <div class="frame"><button id="closeFull" class="alt">✕ Schließen</button><canvas id="cv" width="960" height="540"></canvas></div>
 <div class="ctrl"><button id="stop" class="alt">■ Stopp</button><button id="again">↻ Nochmal</button><button id="big" class="alt">⛶ Groß</button></div>
-<p class="note">Tipp: Für ein Video zum Behalten kannst du den Bildschirm aufnehmen.</p>
+<div class="savebox" id="savebox"><p class="note" id="savemsg"></p><div class="ctrl"><button id="dl" disabled>⬇ Video laden</button><button id="keep" class="alt" disabled>☆ Film aufbewahren</button></div></div>
 </section>
+<section class="card" id="libcard" style="display:none"><h2><svg class="ic" viewBox="0 0 100 100"><use href="#reel"/></svg>Meine Filme</h2><div id="lib"></div><p class="note">Aufbewahrte Filme bleiben in diesem Browser auf deinem Gerät gespeichert.</p></section>
 <footer><div class="shelf"><div class="items"><svg class="o" viewBox="0 0 100 100"><use href="#clock"/></svg><svg class="o" viewBox="0 0 100 100"><use href="#vase"/></svg><svg class="o" viewBox="0 0 100 100"><use href="#reel"/></svg><svg class="o wide" viewBox="0 0 120 100"><use href="#piano"/></svg></div><div class="board"></div></div><p class="fine">❦ Mit Liebe gemacht · Anno 2026 ❦</p></footer>
 </main>
 
@@ -316,7 +323,7 @@ function stopAudio(){
 /* ---------- Ablauf ---------- */
 function start(){
   if(!photos.length)return;
-  cancelAnimationFrame(raf);stopAudio();
+  cancelAnimationFrame(raf);stopRec(false);stopAudio();recDest=null;
   D=parseFloat($("dur").value);look=$("look").value;
   var title=$("title").value.trim()||"Erinnerungen";
   slides=[{type:"title",text:title}];
@@ -327,11 +334,84 @@ function start(){
   $("stage").scrollIntoView({behavior:"smooth",block:"start"});
   var m=$("mus").value;
   if(m!=="none"&&m!=="own"){try{playTrack(m,total)}catch(err){}}
-  else if(m==="own"&&ownBuf){var AC=window.AudioContext||window.webkitAudioContext;if(AC){var ac=new AC();actx=ac;ac.decodeAudioData(ownBuf.slice(0),function(b){if(actx!==ac)return;var s=ac.createBufferSource();s.buffer=b;var g=ac.createGain();g.gain.value=.9;s.connect(g);g.connect(ac.destination);s.start()},function(){})}}
+  else if(m==="own"&&ownBuf){var AC=window.AudioContext||window.webkitAudioContext;if(AC){var ac=new AC();actx=ac;try{recDest=ac.createMediaStreamDestination()}catch(err){}ac.decodeAudioData(ownBuf.slice(0),function(b){if(actx!==ac)return;var s=ac.createBufferSource();s.buffer=b;var g=ac.createGain();g.gain.value=.9;s.connect(g);g.connect(ac.destination);if(recDest)g.connect(recDest);s.start()},function(){})}}
+  if(actx&&m!=="own"&&m!=="none"){try{recDest=actx.createMediaStreamDestination();master.connect(recDest)}catch(err){}}
+  startRec();
   playing=true;t0=performance.now();try{frame(0)}catch(err){}raf=requestAnimationFrame(loop);
 }
-function finish(){playing=false;stopAudio()}
-function stop(){playing=false;cancelAnimationFrame(raf);stopAudio()}
+function finish(){playing=false;var r=rec;if(!r){stopAudio();return}setTimeout(function(){if(rec!==r)return;stopRec(true,r);stopAudio()},500)}
+function stop(){playing=false;cancelAnimationFrame(raf);stopRec(false);stopAudio()}
+/* ---------- Aufnehmen, speichern, herunterladen ---------- */
+var recDest=null,rec=null,chunks=[],lastFilm=null,recMime="",recExt="webm";
+function msg(t){$("savemsg").textContent=t}
+function safeName(s){return (s||"Film").replace(/[^\wäöüÄÖÜß -]+/g,"").trim().replace(/\s+/g,"_")||"Film"}
+function setSaveUI(s){
+  var b=$("savebox");
+  if(s==="none"){b.style.display="none";return}
+  b.style.display="block";
+  $("dl").disabled=$("keep").disabled=(s!=="ready");
+  $("keep").style.display=window.indexedDB?"":"none";
+  msg(s==="busy"?"Der Film wird aufgenommen … bitte bis zum Ende ansehen.":"Fertig! Dein Film liegt als "+recExt.toUpperCase()+"-Datei bereit."+(recExt!=="mp4"?" (Dein Browser kann kein MP4 erzeugen, daher WebM.)":""));
+}
+function pickMime(){
+  var c=["video/mp4;codecs=avc1.42E01E,mp4a.40.2","video/mp4;codecs=avc1","video/mp4","video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
+  for(var i=0;i<c.length;i++){try{if(MediaRecorder.isTypeSupported(c[i]))return c[i]}catch(e){}}
+  return "";
+}
+function startRec(){
+  lastFilm=null;
+  if(!cv.captureStream||!window.MediaRecorder){setSaveUI("none");return}
+  try{
+    var st=cv.captureStream(30);
+    if(recDest)recDest.stream.getAudioTracks().forEach(function(tr){st.addTrack(tr)});
+    recMime=pickMime();recExt=recMime.indexOf("mp4")===0?"mp4":"webm";
+    chunks=[];
+    rec=recMime?new MediaRecorder(st,{mimeType:recMime,videoBitsPerSecond:3500000}):new MediaRecorder(st);
+    rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data)};
+    rec.onstop=function(){if(this._keep){lastFilm=new Blob(chunks,{type:recMime||"video/webm"});setSaveUI("ready")}};
+    rec.start(500);setSaveUI("busy");
+  }catch(err){rec=null;setSaveUI("none")}
+}
+function stopRec(keep,r){
+  r=r||rec;if(!r)return;
+  r._keep=keep;try{if(r.state!=="inactive")r.stop()}catch(e){}
+  if(rec===r)rec=null;
+  if(!keep)setSaveUI("none");
+}
+function download(blob,name){
+  var P=(window.claude&&claude.use)?claude.use("downloads"):null;
+  Promise.resolve(P).catch(function(){return null}).then(function(d){
+    if(d){return d.save({filename:name,data:blob}).then(function(){msg("Gespeichert!")},function(e){msg(e&&e.code==="declined"?"Abgebrochen.":"Herunterladen hat nicht geklappt.")})}
+    var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+  });
+}
+function dbo(){return new Promise(function(res,rej){var q=indexedDB.open("erinnerungsfilm",1);q.onupgradeneeded=function(){q.result.createObjectStore("films",{keyPath:"id",autoIncrement:true})};q.onsuccess=function(){res(q.result)};q.onerror=function(){rej(q.error)}})}
+function dbTx(mode,fn){return dbo().then(function(db){return new Promise(function(res,rej){var tx=db.transaction("films",mode),out=fn(tx.objectStore("films"));tx.oncomplete=function(){res(out&&out.result!==undefined?out.result:out)};tx.onerror=function(){rej(tx.error)}})})}
+function renderLib(){
+  if(!window.indexedDB)return;
+  dbTx("readonly",function(s){return s.getAll()}).then(function(list){
+    var box=$("lib");box.innerHTML="";
+    $("libcard").style.display=list.length?"block":"none";
+    list.reverse().forEach(function(f){
+      var row=document.createElement("div");row.className="film";
+      var im=document.createElement("img");im.alt="";if(f.thumb)im.src=f.thumb;
+      var meta=document.createElement("div");meta.className="meta";
+      meta.textContent=f.name+" · "+new Date(f.date).toLocaleDateString("de-DE")+" · "+(f.blob.size/1048576).toFixed(1)+" MB";
+      var b1=document.createElement("button");b1.textContent="⬇";b1.setAttribute("aria-label","Herunterladen");
+      b1.onclick=function(){download(f.blob,safeName(f.name)+"."+f.ext)};
+      var b2=document.createElement("button");b2.className="alt";b2.textContent="✕";b2.setAttribute("aria-label","Löschen");
+      b2.onclick=function(){dbTx("readwrite",function(s){s.delete(f.id)}).then(renderLib)};
+      row.appendChild(im);row.appendChild(meta);row.appendChild(b1);row.appendChild(b2);box.appendChild(row);
+    });
+  }).catch(function(){});
+}
+$("dl").onclick=function(){if(lastFilm)download(lastFilm,safeName($("title").value)+"."+recExt)};
+$("keep").onclick=function(){
+  if(!lastFilm||!window.indexedDB)return;
+  var item={name:$("title").value.trim()||"Film",ext:recExt,date:Date.now(),blob:lastFilm,thumb:photos[0]?photos[0].url:""};
+  dbTx("readwrite",function(s){s.add(item)}).then(function(){msg("Film aufbewahrt – du findest ihn unter „Meine Filme“.");renderLib()},function(){msg("Aufbewahren hat nicht geklappt (vielleicht zu wenig Speicherplatz).")});
+};
+renderLib();
 $("start").onclick=start;$("again").onclick=start;$("stop").onclick=stop;
 var fr=document.querySelector(".frame");
 function setFull(on){
@@ -348,4 +428,3 @@ refresh();
 </script>
 </body>
 </html>
-
