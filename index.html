@@ -77,6 +77,11 @@ footer{margin-top:34px;text-align:center}
 .film img{width:64px;height:48px;object-fit:cover;border:3px solid #fff6e0;filter:sepia(.5);flex:none}
 .film .meta{flex:1;font-size:.9rem;min-width:0;overflow-wrap:anywhere}
 .film button{padding:6px 12px;min-height:42px;font-size:1rem;flex:none}
+.designs{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.designs button{display:flex;flex-direction:column;gap:8px;align-items:stretch;background:var(--paper);color:var(--ink);border:2px solid var(--line);box-shadow:none;text-shadow:none;padding:8px;min-height:0;font-size:.9rem;letter-spacing:0}
+.designs button.on{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent)}
+.designs i{display:flex;align-items:center;justify-content:center;height:62px;font-style:normal;font-family:"Playfair Display",Georgia,serif;font-size:1.3rem}
+.designs span{text-align:center}
 </style>
 </head>
 <body>
@@ -102,12 +107,19 @@ footer{margin-top:34px;text-align:center}
 </section>
 
 <section class="card">
-<h2><svg class="ic" viewBox="0 0 100 100"><use href="#gramo"/></svg>2. Einstellungen</h2>
+<h2><svg class="ic" viewBox="0 0 100 100"><use href="#reel"/></svg>2. Filmdesign</h2>
+<div class="designs" id="designs">
+<button type="button" class="on" data-d="stumm"><i style="background:#2b1a0e;color:#e9cf93;border:3px double #b8893b">Aa</i><span>Stummfilm</span></button>
+<button type="button" data-d="kino"><i style="background:#6a6a6a;color:#fff;border-top:10px solid #000;border-bottom:10px solid #000">Kino</i><span>Kino Schwarzweiß</span></button>
+<button type="button" data-d="polaroid"><i style="background:#e8dcc2"><b style="display:block;width:46px;height:44px;background:linear-gradient(#9ab,#cb9);border:5px solid #fbf7ee;border-bottom-width:13px;transform:rotate(-5deg);box-shadow:2px 2px 4px rgba(0,0,0,.35)"></b></i><span>Polaroid-Album</span></button>
+<button type="button" data-d="super8"><i style="background:#3a1f12;color:#ffcf8a;border-radius:16px;font-family:'Special Elite',monospace">’78</i><span>Super-8-Urlaub</span></button>
+</div></section>
+<section class="card"><h2><svg class="ic" viewBox="0 0 100 100"><use href="#clock"/></svg>3. Einstellungen</h2>
 <div class="row"><label for="title">Titel des Films</label><input id="title" type="text" value="Unsere schönen Tage" maxlength="40"></div>
 <div class="row"><label for="dur">Dauer pro Foto</label>
 <select id="dur"><option value="3">3 Sekunden</option><option value="4" selected>4 Sekunden</option><option value="6">6 Sekunden</option></select></div>
 <div class="row"><label for="look">Filmlook</label>
-<select id="look"><option value="sepia" selected>Sepia (braun)</option><option value="bw">Schwarzweiß</option><option value="color">Natürliche Farben</option></select></div>
+<select id="look"><option value="sepia" selected>Sepia (braun)</option><option value="bw">Schwarzweiß</option><option value="color">Natürliche Farben</option><option value="warm">Warm (Super 8)</option></select></div>
 <div class="row"><label for="mus">Musik</label>
 <select id="mus"><option value="waltz" selected>Spieluhr-Walzer</option><option value="rag">Ragtime-Klavier (flott)</option><option value="lull">Wiegenlied (ruhig)</option><option value="march">Kapellen-Marsch (fröhlich)</option><option value="none">Ohne Musik</option><option value="own">Eigene Musikdatei</option></select></div>
 <div class="row" id="ownrow" style="display:none"><label for="own">Musikdatei wählen</label><input id="own" type="file" accept="audio/*" style="display:block"></div>
@@ -184,25 +196,55 @@ $("mus").onchange=function(){$("ownrow").style.display=this.value==="own"?"flex"
 var ownBuf=null;
 $("own").onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){ownBuf=r.result};r.readAsArrayBuffer(f)};
 
+var DES={
+ stumm:{look:"sepia",bg:"#2b1a0e",fg:"#e9cf93",ac:"#b8893b",font:"'Playfair Display',Georgia,serif",grain:.1,vig:1,frame:"",sub:"ein Film aus Erinnerungen",end:"Ende",endsub:"— Fin —"},
+ kino:{look:"bw",bg:"#0b0b0b",fg:"#f2f2f2",ac:"#9a9a9a",font:"'Special Elite','Courier New',monospace",grain:.2,vig:1,frame:"letter",sub:"ein Film in Schwarzweiß",end:"THE END",endsub:"· · ·"},
+ polaroid:{look:"color",bg:"#e8dcc2",fg:"#4a3524",ac:"#a05a3a",font:"'Playfair Display',Georgia,serif",grain:.05,vig:.3,frame:"polaroid",sub:"unser Fotoalbum",end:"Bis bald!",endsub:"♥"},
+ super8:{look:"warm",bg:"#3a1f12",fg:"#ffcf8a",ac:"#e0702a",font:"'Special Elite','Courier New',monospace",grain:.14,vig:.9,frame:"super8",sub:"Urlaubsfilm · Super 8",end:"ENDE",endsub:"— gedreht mit Liebe —"}
+};
+var dz=DES.stumm,curD="stumm";
+var dbtn=document.querySelectorAll("#designs button");
+Array.prototype.forEach.call(dbtn,function(b){b.onclick=function(){
+  Array.prototype.forEach.call(dbtn,function(x){x.classList.remove("on")});
+  b.classList.add("on");curD=b.getAttribute("data-d");$("look").value=DES[curD].look;
+}});
+function drawPolaroid(s,prog){
+  var im=s.img;
+  ctx.fillStyle=dz.bg;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle="rgba(120,80,40,.07)";for(var k=0;k<H;k+=14)ctx.fillRect(0,k,W,2);
+  var ph=H*.86,pw=ph*.84,pad=pw*.06,iw=pw-2*pad,ih=ph-pad-ph*.2,rot=s.rot*(1-prog*.3);
+  ctx.save();ctx.translate(W/2,H/2);ctx.rotate(rot);
+  ctx.shadowColor="rgba(40,20,0,.4)";ctx.shadowBlur=24;ctx.shadowOffsetY=8;
+  ctx.fillStyle="#fbf7ee";ctx.fillRect(-pw/2,-ph/2,pw,ph);
+  ctx.shadowColor="transparent";
+  ctx.beginPath();ctx.rect(-pw/2+pad,-ph/2+pad,iw,ih);ctx.clip();
+  var sc=Math.max(iw/im.width,ih/im.height)*(1+.08*prog),w=im.width*sc,h=im.height*sc;
+  ctx.drawImage(im,-pw/2+pad+(iw-w)/2,-ph/2+pad+(ih-h)/2,w,h);
+  ctx.restore();
+  ctx.save();ctx.translate(W/2,H/2);ctx.rotate(rot);
+  ctx.fillStyle="#6b5233";ctx.textAlign="center";ctx.font="italic 26px 'Playfair Display',Georgia,serif";
+  ctx.fillText("Erinnerung Nr. "+s.n,0,ph/2-ph*.07);ctx.restore();
+}
 /* ---------- Zeichnen ---------- */
 function ease(p){return p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2}
 function card(title,sub){
-  ctx.fillStyle="#2b1a0e";ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle="#b8893b";ctx.lineWidth=4;ctx.strokeRect(40,40,W-80,H-80);
+  ctx.fillStyle=dz.bg;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=dz.ac;ctx.lineWidth=4;ctx.strokeRect(40,40,W-80,H-80);
   ctx.lineWidth=1.5;ctx.strokeRect(54,54,W-108,H-108);
-  ctx.textAlign="center";ctx.fillStyle="#e9cf93";
+  ctx.textAlign="center";ctx.fillStyle=dz.fg;
   ctx.font="700 64px 'Playfair Display',Georgia,serif";
   fit(title,W-200,64);ctx.fillText(title,W/2,H/2+10);
-  ctx.font="28px 'Special Elite','Courier New',monospace";ctx.fillStyle="#b8893b";
+  ctx.font="28px 'Special Elite','Courier New',monospace";ctx.fillStyle=dz.ac;
   ctx.fillText(sub,W/2,H/2+70);ctx.fillText("❦",W/2,H/2-70);
 }
 function fit(txt,max,size){
   var s=size;
-  do{ctx.font="700 "+s+"px 'Playfair Display',Georgia,serif";s-=4}while(ctx.measureText(txt).width>max&&s>20);
+  do{ctx.font="700 "+s+"px "+dz.font;s-=4}while(ctx.measureText(txt).width>max&&s>20);
 }
 function drawSlide(s,prog){
-  if(s.type==="title"){card(s.text,"ein Film aus Erinnerungen");return}
-  if(s.type==="end"){card("Ende","— Fin —");return}
+  if(s.type==="title"){card(s.text,dz.sub);return}
+  if(s.type==="end"){card(dz.end,dz.endsub);return}
+  if(dz.frame==="polaroid"){drawPolaroid(s,prog);return}
   var im=s.img,sc=Math.max(W/im.width,H/im.height)*(1+.12*prog);
   var w=im.width*sc,h=im.height*sc;
   var dx=(W-w)/2+s.dir*prog*W*.03,dy=(H-h)/2;
@@ -210,18 +252,27 @@ function drawSlide(s,prog){
   ctx.drawImage(im,dx,dy,w,h);
 }
 function toneAndAge(t){
-  if(look!=="color"){
+  if(look==="warm"){ctx.save();ctx.fillStyle="rgba(255,140,50,.16)";ctx.fillRect(0,0,W,H);ctx.globalCompositeOperation="color";ctx.globalAlpha=.22;ctx.fillStyle="#a06a30";ctx.fillRect(0,0,W,H);ctx.restore()}
+  else if(look!=="color"){
     ctx.save();ctx.globalCompositeOperation="color";
     ctx.globalAlpha=look==="sepia"?.7:1;
     ctx.fillStyle=look==="sepia"?"#8a5a2b":"#808080";ctx.fillRect(0,0,W,H);ctx.restore();
   }
-  ctx.save();ctx.globalAlpha=.1;ctx.globalCompositeOperation="overlay";
+  ctx.save();ctx.globalAlpha=dz.grain;ctx.globalCompositeOperation="overlay";
   ctx.fillStyle=ctx.createPattern(noise,"repeat");
   ctx.translate(-Math.random()*160,-Math.random()*160);ctx.fillRect(0,0,W+160,H+160);ctx.restore();
-  ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.globalAlpha=Math.min(1,dz.vig);ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);ctx.restore();
   if(Math.random()<.18){ctx.fillStyle="rgba(255,240,200,"+(.25+Math.random()*.3)+")";ctx.fillRect(Math.random()*W,0,1.5,H)}
   if(Math.random()<.1){ctx.fillStyle="rgba(0,0,0,.4)";ctx.beginPath();ctx.arc(Math.random()*W,Math.random()*H,1+Math.random()*3,0,7);ctx.fill()}
   var fl=Math.random()*.06;ctx.fillStyle="rgba(255,235,190,"+fl+")";ctx.fillRect(0,0,W,H);
+  if(dz.frame==="letter"){ctx.fillStyle="#000";ctx.fillRect(0,0,W,H*.11);ctx.fillRect(0,H*.89,W,H*.11)}
+  if(dz.frame==="super8"){
+    if(Math.random()<.05){var g=ctx.createLinearGradient(0,0,W*.4,0);g.addColorStop(0,"rgba(255,120,40,.35)");g.addColorStop(1,"rgba(255,120,40,0)");ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+    ctx.save();ctx.beginPath();ctx.rect(0,0,W,H);var r=46,mg=14;
+    ctx.moveTo(mg+r,mg);ctx.arcTo(W-mg,mg,W-mg,H-mg,r);ctx.arcTo(W-mg,H-mg,mg,H-mg,r);ctx.arcTo(mg,H-mg,mg,mg,r);ctx.arcTo(mg,mg,W-mg,mg,r);ctx.closePath();
+    ctx.fillStyle="#0a0604";ctx.fill("evenodd");ctx.restore();
+    ctx.fillStyle="rgba(255,150,50,.85)";ctx.font="22px 'Special Elite','Courier New',monospace";ctx.textAlign="right";ctx.fillText("’78",W-36,H-30);
+  }
 }
 function frame(t){
   var n=slides.length,i=Math.max(0,Math.min(Math.floor(t/D),n-1)),local=Math.max(0,t-i*D);
@@ -324,10 +375,10 @@ function stopAudio(){
 function start(){
   if(!photos.length)return;
   cancelAnimationFrame(raf);stopRec(false);stopAudio();recDest=null;
-  D=parseFloat($("dur").value);look=$("look").value;
+  D=parseFloat($("dur").value);look=$("look").value;dz=DES[curD]||DES.stumm;
   var title=$("title").value.trim()||"Erinnerungen";
   slides=[{type:"title",text:title}];
-  photos.forEach(function(p,i){slides.push({type:"img",img:p.img,dir:i%2?-1:1})});
+  photos.forEach(function(p,i){slides.push({type:"img",img:p.img,dir:i%2?-1:1,rot:(i%2?-1:1)*(.02+((i*7)%3)*.012),n:i+1})});
   slides.push({type:"end"});
   total=slides.length*D;
   $("stage").classList.add("on");
